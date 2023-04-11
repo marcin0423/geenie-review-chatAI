@@ -12,7 +12,8 @@ def query_view(request):
     if request.method == 'GET':
         prompt = request.GET.get('prompt')
 
-    response = get_amazon_reviews(prompt)
+    response = prompt
+    # response = get_amazon_reviews(prompt)
     # response = get_completion(prompt)
     return JsonResponse({'response': response})
     # return render(request, 'query.html')

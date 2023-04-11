@@ -73,6 +73,6 @@ def get_amazon_reviews(prompt):
     # response = generate_response_gpt3(prompt)
     return response
 
-amazonQA = init_amazon_reviews('./amazon_reviews/B0839DH2LW.txt')
-query = "OK"
-print(amazonQA.run(query))
+# amazonQA = init_amazon_reviews('./amazon_reviews/B0839DH2LW.txt')
+# query = "OK"
+# print(amazonQA.run(query))

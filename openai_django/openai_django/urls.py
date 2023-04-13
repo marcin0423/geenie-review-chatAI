@@ -15,9 +15,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from base_app.views import query_view
+from base_app.views import query_view, init_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/chat', query_view, name='query'),
+    path('api/init', init_view, name='query'),
 ]

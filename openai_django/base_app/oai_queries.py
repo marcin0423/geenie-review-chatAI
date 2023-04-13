@@ -31,27 +31,46 @@ from langchain.embeddings import OpenAIEmbeddings
 
 from langchain.vectorstores import Chroma
 
+import json
+import re
+from pathlib import Path
+
 os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
+amazonReviewDir = './amazon_reviews/'
+amazonQAs = []
 
-def init_amazon_reviews(srcPath):
-    # text loader
-    loader = TextLoader(srcPath, 'utf-8')
-    documents = loader.load()
-    text_splitter = CharacterTextSplitter(chunk_size=2000, chunk_overlap=0)
-    texts = text_splitter.split_documents(documents)    
+def init_review_from_asin(asin):
 
-    # json loader
-    # loader = AirbyteJSONLoader('1.json')
-    # documents = loader.load()
+    if os.path.isfile(os.path.join(amazonReviewDir, asin + '.txt')) and os.path.getsize(os.path.join(amazonReviewDir, asin + '.txt')) > 0:
+        # text loader
+        try:
+            loader = TextLoader(amazonReviewDir + asin + '.txt', 'utf-8')
+            documents = loader.load()
 
-    embeddings = OpenAIEmbeddings()
+            text_splitter = CharacterTextSplitter(chunk_size=1024 * 2, chunk_overlap=0)
+            texts = text_splitter.split_documents(documents)
 
-    db = Chroma.from_documents(texts, embeddings)
-    retriever = db.as_retriever()
+            embeddings = OpenAIEmbeddings()
 
-    return RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=retriever)
-    return RetrievalQA.from_llm(llm=OpenAI(), retriever=retriever)
+            db = Chroma.from_documents(texts, embeddings)
+            retriever = db.as_retriever()
 
+            return RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=retriever), True
+        except:
+            return None, False
+    return None, False
+
+def init_all_amazon_reviews():    
+    pathList = os.listdir(amazonReviewDir)
+    for path in pathList:
+        if os.path.isfile(os.path.join(amazonReviewDir, path)) and path.endswith(".txt") and os.path.getsize(os.path.join(amazonReviewDir, path)) > 0:
+            asin = Path(amazonReviewDir + path).stem
+
+            print( 'train asin:', asin )
+            QA, ret = init_review_from_asin(asin)
+            if ret == True:
+                print('success')
+                amazonQAs.append( [asin, QA] )
 
 def generate_response_gpt3(message_list):
     response = openai.ChatCompletion.create(
@@ -68,11 +87,56 @@ def generate_response_gpt3(message_list):
 
     return response["choices"][0]["message"]["content"].strip()    
 
-def get_amazon_reviews(prompt):
-    response = amazonQA.run(prompt)
-    # response = generate_response_gpt3(prompt)
-    return response
+def get_amazon_reviews(prompt, asin):
+    for i in amazonQAs:
+        if i[0] == asin:
+            response = i[1].run(prompt)
+            return response
 
-# amazonQA = init_amazon_reviews('./amazon_reviews/B0839DH2LW.txt')
+    # if it doesn't exits, append new review
+    print( 'train asin:', asin )
+    QA, ret = init_review_from_asin(asin)
+    if ret == True:
+        print('success')
+        amazonQAs.append( [asin, QA] )
+        return get_amazon_reviews(prompt, asin)
+
+    return "Sorry, I don't know."
+    # response = generate_response_gpt3(prompt)
+
+
+
 # query = "OK"
 # print(amazonQA.run(query))
+
+
+#           Convert json 2 text
+# for path in os.listdir(amazonReviewDir):
+#     if os.path.isfile(os.path.join(amazonReviewDir, path)) and path.endswith(".json"):
+#         srcPath = amazonReviewDir + path
+#         destPath = amazonReviewDir + Path(srcPath).stem + '.txt'
+#         convert_json2txt(srcPath, destPath)
+#         print( 'convert asin:' + Path(srcPath).stem)
+
+# def convert_json2txt(srcPath, destPath):
+#     # srcFile = open(srcPath, 'r', -1, 'utf-8')
+#     # destFile = open(destPath, 'w', -1, 'utf-8')
+
+#     with open(srcPath, 'r', -1, 'utf-8') as srcFile:
+#         with open(destPath, 'w', -1, 'utf-8') as destFile:
+
+#             reviewArray = json.load(srcFile)
+
+#             i = 0
+#             for review in reviewArray:
+#                 if review.get('customer_review'):
+#                     data = review['customer_review']
+#                     data = re.sub('\n|\r\n', ' ', data)
+#                     destFile.write(data)
+#                     destFile.write('\n\n')
+
+#                     i = i + 1
+#                 # print(i, ':', data)
+
+#             srcFile.close()
+#             destFile.close()

@@ -1,3 +1,5 @@
 .env
 /openai_venv/
 /openai_django/db.sqlite3
+/amazon_reviews
+/.chroma

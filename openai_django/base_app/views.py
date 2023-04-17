@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from .oai_queries import get_completion, get_amazon_reviews, init_all_amazon_reviews
+from .oai_queries import get_completion, get_amazon_reviews, init_all_amazon_reviews, init_pdf_embeddings
 
 
 @csrf_exempt
@@ -22,7 +22,8 @@ def query_view(request):
 @csrf_exempt
 def init_view(request):
     
-    init_all_amazon_reviews()
+    init_pdf_embeddings()
+    # init_all_amazon_reviews()
     # response = get_completion(prompt)
     return JsonResponse({'response': 'ok'})
     # return render(request, 'query.html')    

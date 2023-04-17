@@ -140,3 +140,31 @@ def get_amazon_reviews(prompt, asin):
 
 #             srcFile.close()
 #             destFile.close()
+
+
+# PDF TRAINER #
+
+from langchain.document_loaders import PyPDFLoader # for loading the pdf
+from langchain.embeddings import OpenAIEmbeddings # for creating embeddings
+from langchain.vectorstores import Chroma # for the vectorization part
+from langchain.chains import ChatVectorDBChain # for chatting with the pdf
+from langchain.llms import OpenAI # the LLM model we'll use (CHatGPT)
+
+def init_pdf_embeddings():
+    pdf_path = "E:/1.pdf"
+    loader = PyPDFLoader(pdf_path)
+    pages = loader.load_and_split()
+
+    embeddings = OpenAIEmbeddings()
+    vectordb = Chroma.from_documents(pages, embedding=embeddings,
+                                    persist_directory=".")
+    vectordb.persist()
+
+    pdf_qa = ChatVectorDBChain.from_llm(OpenAI(temperature=0.9, model_name="gpt-3.5-turbo"),
+                                        vectordb, return_source_documents=True)
+
+    while True:
+        query = input()
+        result = pdf_qa({"question": query, "chat_history": ""})
+        print("Answer:")
+        print(result["answer"])    

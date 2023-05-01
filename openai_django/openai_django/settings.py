@@ -135,3 +135,6 @@ CORS_ALLOW_ALL_ORIGINS = True
 # APPEND_SLASH = False
 
 CSRF_COOKIE_HTTPONLY = True
+
+GOOGLE_DRIVE_STORAGE_JSON_KEY_FILE = 'E:/WORK/geenie/geenie-review-chatAI/openai_django/json/credentials.json'
+GOOGLE_DRIVE_STORAGE_MEDIA_ROOT = '1Mq8cbu1CQ3wx40NPYBrzneMS8q4ZXGfg' # OPTIONAL

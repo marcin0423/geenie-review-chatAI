@@ -2,13 +2,14 @@
 from django.conf import settings
 import os
 import openai
+from .google_drive import *
+from django.conf import settings
 
 # OpenAI API Key
 if settings.OPENAI_API_KEY:
     openai.api_key = settings.OPENAI_API_KEY
 else:
     raise Exception('OpenAI API Key not found')
-
 
 def get_completion(prompt):
     query = openai.ChatCompletion.create(
@@ -34,6 +35,7 @@ from langchain.vectorstores import Chroma
 import json
 import re
 from pathlib import Path
+from .review_scraper import scrape_review
 
 os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
 amazonReviewDir = './amazon_reviews/'
@@ -103,6 +105,31 @@ def get_amazon_reviews(prompt, asin):
 
     return "Sorry, I don't know."
     # response = generate_response_gpt3(prompt)
+
+def save_reviews(amazonUrl, cookie, asin):
+    destPath = amazonReviewDir + asin
+    if os.path.exists(destPath + '.txt') and os.path.getsize(destPath + '.txt') > 0:
+        return
+
+    results = scrape_review(amazonUrl, cookie)
+
+    destFile = open(destPath + '.txt', 'w', -1, 'utf-8')
+    for result in results:
+        data = result[2]
+        data = re.sub('\n|\r\n', ' ', data)
+        destFile.write(data)
+        destFile.write('\n\n')
+    destFile.close()
+
+    jsonRet = json.dumps(results)
+    destFile = open(destPath + '.json', 'w', -1, 'utf-8')
+    destFile.write(jsonRet)
+    destFile.close()
+
+    upload_reviews(settings.GOOGLE_DRIVE_STORAGE_MEDIA_ROOT, destPath + '.json', asin + '.json' )
+
+    return destPath + '.json'
+
 
 
 

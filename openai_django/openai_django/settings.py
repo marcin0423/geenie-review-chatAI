@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-08-628s1*@@u6n%x2k4e%ds!_@pga0od%=60a$qn93qtl_x7c_
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'ec2-44-204-150-68.compute-1.amazonaws.com']
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -136,5 +136,6 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 CSRF_COOKIE_HTTPONLY = True
 
-GOOGLE_DRIVE_STORAGE_JSON_KEY_FILE = 'E:/WORK/geenie/geenie-review-chatAI/openai_django/json/credentials.json'
-GOOGLE_DRIVE_STORAGE_MEDIA_ROOT = '1Mq8cbu1CQ3wx40NPYBrzneMS8q4ZXGfg' # OPTIONAL
+# GOOGLE_DRIVE_STORAGE_MEDIA_ROOT = '1Mq8cbu1CQ3wx40NPYBrzneMS8q4ZXGfg' # OPTIONAL
+
+GOOGLE_DRIVE_STORAGE_MEDIA_ROOT = '1-ZWvNv9_MgWg_OXC4N1xLFmT8PCws3v6' # OPTIONAL

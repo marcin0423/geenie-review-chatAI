@@ -129,10 +129,6 @@ def save_reviews(amazonUrl, cookie, asin):
     upload_reviews(settings.GOOGLE_DRIVE_STORAGE_MEDIA_ROOT, destPath + '.json', asin + '.json' )
 
     return destPath + '.json'
-
-
-
-
 # query = "OK"
 # print(amazonQA.run(query))
 

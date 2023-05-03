@@ -11,7 +11,7 @@ SCOPES = ['https://drive.google.com/drive/folders']
 # 1-ZWvNv9_MgWg_OXC4N1xLFmT8PCws3v6
 
 credentials = service_account.Credentials.from_service_account_file(
-  'C:/credentials.json'
+  './credentials.json'
 )
 service = None
 

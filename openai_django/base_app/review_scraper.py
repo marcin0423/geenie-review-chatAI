@@ -7,6 +7,8 @@ import math
 import time
 
 def scrape_review(amazonUrl, cookie):
+
+    print(amazonUrl, cookie)
     # URL = "https://www.amazon.com/RK-ROYAL-KLUDGE-Mechanical-Ultra-Compact/dp/B089GN2KBT/ref=sr_1_1_sspa?crid=1NNFWPEF3MEYM&keywords=gaming+keyboard&qid=1677243455&sprefix=gaming+keyboar%2Caps%2C282&sr=8-1-spons&psc=1&spLa=ZW5jcnlwdGVkUXVhbGlmaWVyPUEyWEcyQU5DMzUwRThRJmVuY3J5cHRlZElkPUEwMDYwNjI1MVpPVE1ZRDhJQUhJVyZlbmNyeXB0ZWRBZElkPUEwMjk5ODQ3M0pSOVVNQ08wT1dPSiZ3aWRnZXROYW1lPXNwX2F0ZiZhY3Rpb249Y2xpY2tSZWRpcmVjdCZkb05vdExvZ0NsaWNrPXRydWU="
     URL = amazonUrl
     HEADERS = {
@@ -14,11 +16,13 @@ def scrape_review(amazonUrl, cookie):
         "Host": "www.amazon.com",
         "Accept-Encoding": "gzip, deflate",
         "Cookie": cookie
-    }
+    }    
 
     response = requests.get(URL, headers=HEADERS)
 
     soup = BeautifulSoup(response.content, "html.parser")
+
+    # print(response.content)
 
     see_all_reviews_link = soup.find("a", {"data-hook": "see-all-reviews-link-foot"})["href"]
 

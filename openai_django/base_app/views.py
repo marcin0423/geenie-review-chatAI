@@ -38,7 +38,7 @@ def ext_chat_review(request):
     if amazonUrl == None or amazonUrl == '':
         return JsonResponse({'response': 'Fetch error, try again'})
     if cookie == None or cookie == '':
-        return JsonResponse({'response': 'Fetch error, try again'})            
+        return JsonResponse({'response': 'Fetch error, try again'})
 
     reviewPath = save_reviews(amazonUrl, cookie, asin)
     response = get_amazon_reviews(prompt, asin)

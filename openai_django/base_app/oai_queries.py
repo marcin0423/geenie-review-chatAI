@@ -90,10 +90,14 @@ def generate_response_gpt3(message_list):
     return response["choices"][0]["message"]["content"].strip()    
 
 def get_amazon_reviews(prompt, asin):
+    print(prompt, asin)
     for i in amazonQAs:
         if i[0] == asin:
-            response = i[1].run(prompt)
-            return response
+            try:
+                response = i[1].run(prompt)
+                return response
+            except:
+                return "Sorry, Server Went Wrong."
 
     # if it doesn't exits, append new review
     print( 'train asin:', asin )

@@ -44,20 +44,20 @@ def ext_chat_review(request):
     # if cookie == None or cookie == '':
     #     return JsonResponse({'response': 'Fetch error, try again'})
 
-    reviewPath = save_reviews(amazonUrl, cookie, asin)
+    reviewPath, pdInfo = save_reviews(amazonUrl, cookie, asin)
 
     if type == "initReviews" :
         prompts = [ 
             { 'title': '🌟Top Negative Keywords and Phrases', 'question':'Please provide a 5-7 bullet-point list of the most frequently mentioned negative keywords and phrases in the customer reviews, indicating areas for improvement. Include relevant quotations or snippets from the reviews to illustrate each point. Additionally, include an estimated hit rate in percentage (no more than 60%) for each topic, representing how often it appears in the reviews.', 'answer': ''},
-            # { 'title': '🌟Top Positive Keywords and Phrases', 'question':'Please provide a 5 bullet-point list of the most frequently mentioned positive keywords and phrases in the customer reviews, indicating areas for improvement. Include relevant quotations or snippets from the reviews to illustrate each point. Additionally, provide an estimated hit rate in percentage (no more than 60%) for each topic, representing how often it appears in the reviews.', 'answer': ''},
-            # { 'title': '🌟Product Features Requests:', 'question':'Analyze the customer reviews to identify 4 to 8 product features that could be improved, starting with the most requested feature. For each feature, provide a practical suggestion on how to improve the product.', 'answer': ''},
-            # { 'title': '🌟New Variation Recommendations:', 'question':'Analyze the customer reviews and identify product variation suggestions, such as additional colors, sizes, or flavors, that customers mention. Please provide a bullet-point list of the new variation ideas.', 'answer': ''},
-            # { 'title': '🌟Bundle opportunities:',     'question':"Analyze the customer reviews and examine research on the consumer decision-making process within the product's niche, providing a brief overview of the stages customers go through before making a purchase and any unique aspects related to this product category.", 'answer': ''}
+            { 'title': '🌟Top Positive Keywords and Phrases', 'question':'Please provide a 5 bullet-point list of the most frequently mentioned positive keywords and phrases in the customer reviews, indicating areas for improvement. Include relevant quotations or snippets from the reviews to illustrate each point. Additionally, provide an estimated hit rate in percentage (no more than 60%) for each topic, representing how often it appears in the reviews.', 'answer': ''},
+            { 'title': '🌟Product Features Requests:', 'question':'Analyze the customer reviews to identify 4 to 8 product features that could be improved, starting with the most requested feature. For each feature, provide a practical suggestion on how to improve the product.', 'answer': ''},
+            { 'title': '🌟New Variation Recommendations:', 'question':'Analyze the customer reviews and identify product variation suggestions, such as additional colors, sizes, or flavors, that customers mention. Please provide a bullet-point list of the new variation ideas.', 'answer': ''},
+            { 'title': '🌟Bundle opportunities:',     'question':"Analyze the customer reviews and examine research on the consumer decision-making process within the product's niche, providing a brief overview of the stages customers go through before making a purchase and any unique aspects related to this product category.", 'answer': ''}
         ]
         for prompt in prompts:
             response = get_amazon_reviews(prompt.get("question"), asin)
             prompt["answer"] = response
-        return JsonResponse({'response': json.dumps(prompts)})
+        return JsonResponse({'productInformation': pdInfo, 'response': json.dumps(prompts)})
     if type == "QA" :
         response = get_amazon_reviews(prompt, asin)
         return JsonResponse({'response': response})

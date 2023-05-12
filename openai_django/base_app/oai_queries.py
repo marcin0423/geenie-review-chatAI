@@ -113,9 +113,9 @@ def get_amazon_reviews(prompt, asin):
 def save_reviews(amazonUrl, cookie, asin):
     destPath = amazonReviewDir + asin
     if os.path.exists(destPath + '.txt') and os.path.getsize(destPath + '.txt') > 0:
-        return
+        return scrape_review(amazonUrl, cookie, True)
 
-    results = scrape_review(amazonUrl, cookie)
+    results, pdInfo = scrape_review(amazonUrl, cookie)
 
     destFile = open(destPath + '.txt', 'w', -1, 'utf-8')
     for result in results:
@@ -132,7 +132,7 @@ def save_reviews(amazonUrl, cookie, asin):
 
     upload_reviews(settings.GOOGLE_DRIVE_STORAGE_MEDIA_ROOT, destPath + '.json', asin + '.json' )
 
-    return destPath + '.json'
+    return destPath + '.json', pdInfo
 
 # query = "OK"
 # print(amazonQA.run(query))

@@ -153,7 +153,8 @@ def getAnswer(prompt, asin):
     if ret == True:
         print('train success')
         amazonQAs.append( [asin, QA] )
-        return get_answer_reviews(prompt, asin)
+        ret, response = getAnswer(prompt, asin)
+        return ret, response
 
     return False, "Sorry, I don't know."
 

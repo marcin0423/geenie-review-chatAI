@@ -19,7 +19,10 @@ from base_app.views import *
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/chat', chat_review, name='query'),
-    path('api/ext_chat', ext_chat_review, name='query'),
-    path('api/init', init_view, name='query'),
+    # path('api/chat', chat_review, name='query'),
+    # path('api/ext_chat', ext_chat_review, name='query'),
+    # path('api/init', init_view, name='query'),
+
+    path('api/pdinfo/get', getProductInformation, name='query'),
+    path('api/chat/ext', getAnswerFromReviews, name='query'),
 ]

@@ -35,14 +35,13 @@ from langchain.vectorstores import Chroma
 import json
 import re
 from pathlib import Path
-from .review_scraper import scrape_review
+from .review_scraper import scrape_amazon_data
 
 os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
 amazonReviewDir = './amazon_reviews/'
 amazonQAs = []
 
-def init_review_from_asin(asin):
-
+def init_AIengine_from_asin(asin):
     if os.path.isfile(os.path.join(amazonReviewDir, asin + '.txt')) and os.path.getsize(os.path.join(amazonReviewDir, asin + '.txt')) > 0:
         # text loader
         try:
@@ -69,7 +68,7 @@ def init_all_amazon_reviews():
             asin = Path(amazonReviewDir + path).stem
 
             print( 'train asin:', asin )
-            QA, ret = init_review_from_asin(asin)
+            QA, ret = init_AIengine_from_asin(asin)
             if ret == True:
                 print('success')
                 amazonQAs.append( [asin, QA] )
@@ -89,8 +88,8 @@ def generate_response_gpt3(message_list):
 
     return response["choices"][0]["message"]["content"].strip()    
 
-def get_amazon_reviews(prompt, asin):
-    print(prompt, asin)
+def get_answer_reviews(prompt, asin):
+
     for i in amazonQAs:
         if i[0] == asin:
             try:
@@ -101,11 +100,11 @@ def get_amazon_reviews(prompt, asin):
 
     # if it doesn't exits, append new review
     print( 'train asin:', asin )
-    QA, ret = init_review_from_asin(asin)
+    QA, ret = init_AIengine_from_asin(asin)
     if ret == True:
-        print('success')
+        print('train success')
         amazonQAs.append( [asin, QA] )
-        return get_amazon_reviews(prompt, asin)
+        return get_answer_reviews(prompt, asin)
 
     return "Sorry, I don't know."
     # response = generate_response_gpt3(prompt)
@@ -113,9 +112,9 @@ def get_amazon_reviews(prompt, asin):
 def save_reviews(amazonUrl, cookie, asin):
     destPath = amazonReviewDir + asin
     if os.path.exists(destPath + '.txt') and os.path.getsize(destPath + '.txt') > 0:
-        return scrape_review(amazonUrl, cookie, True)
+        return destPath + '.json'
 
-    results, pdInfo = scrape_review(amazonUrl, cookie)
+    pdInfo, results= scrape_amazon_data(amazonUrl, cookie)
 
     destFile = open(destPath + '.txt', 'w', -1, 'utf-8')
     for result in results:
@@ -132,7 +131,31 @@ def save_reviews(amazonUrl, cookie, asin):
 
     upload_reviews(settings.GOOGLE_DRIVE_STORAGE_MEDIA_ROOT, destPath + '.json', asin + '.json' )
 
-    return destPath + '.json', pdInfo
+    return destPath + '.json'
+
+def get_product_infos(amazonUrl, cookie):
+    pdInfo, results = scrape_amazon_data(amazonUrl, cookie, True)
+    return pdInfo
+
+def getAnswer(prompt, asin):
+    for i in amazonQAs:
+        if i[0] == asin:
+            try:
+                print( 'get answer:', prompt )
+                response = i[1].run(prompt)
+                return True, response
+            except:
+                return False, "Sorry, Server Went Wrong."
+
+    # if it doesn't exits, append new review
+    print( 'train asin:', asin )
+    QA, ret = init_AIengine_from_asin(asin)
+    if ret == True:
+        print('train success')
+        amazonQAs.append( [asin, QA] )
+        return get_answer_reviews(prompt, asin)
+
+    return False, "Sorry, I don't know."
 
 # query = "OK"
 # print(amazonQA.run(query))

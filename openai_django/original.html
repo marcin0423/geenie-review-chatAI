@@ -1,0 +1,726 @@
+<style>
+    .tooltip {
+        position: absolute;
+        z-index: 9999;
+        padding: 10px;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: white;
+        font-size: 14px;
+        border-radius: 5px;
+        border: 1px solid white;
+        max-width: 300px;
+    }
+
+    #mkmap_svg_container {
+        position: relative;
+        width: 100%;
+        overflow: hidden;
+    }
+
+    #mkmap_svg {
+        display: block;
+        width: 100%;
+        height: auto;
+    }
+
+
+    #mapDate {
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+    }
+
+    input:where([type="checkbox"]) {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 22px;
+        height: 22px;
+        margin: calc(0.75em - 11px) 0.25rem 0 0;
+        vertical-align: middle;
+        border: 2px solid #ddd;
+        border-radius: 4px;
+        background: #fff no-repeat center center;
+    }
+
+    input:where([type="checkbox"]):where(:active:not(:disabled), :focus) {
+        border-color: #696;
+        outline: none;
+    }
+
+    input:where([type="checkbox"]):disabled {
+        background: #eee;
+    }
+
+    input[type="checkbox"]:checked {
+        background-image: url('https://cdn.mountkiddrv.com/libs/svg/checkbox.svg');
+    }
+    
+    div.controls-zoom{
+        position:absolute;
+        left:10;
+        top: 10;
+    }
+</style>
+<script src="https://www.mountkiddrv.com/media/vendor/jquery/js/jquery.min.js"></script>
+<script src="https://www.mountkiddrv.com/components/com_gridbox/libraries/bootstrap/bootstrap.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon@latest/build/global/luxon.min.js"></script>
+<script src="https://unpkg.com/svg-pan-zoom@latest/dist/svg-pan-zoom.min.js"></script>
+<script src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
+<script src="https://rawgit.com/DanielHoffmann/jquery-svg-pan-zoom/master/compiled/jquery.svg.pan.zoom.js"></script>
+<div style="background-color: #ffffff; z-index: 2; padding-top:17px; margin-bottom:17px; line-height: 45px; align-self: center; align-content: center; align-items: center;   position: -webkit-sticky; /* Safari */ position: sticky; top: 0; box-shadow: 0px 0px 5px #888888;">
+
+    <div id="showingDate"
+        style="display:block; width:100%; font-weight:700; text-align:center; font-size:2.5em; color:#336699;">
+        RV & Campsite Map
+    </div>
+    <form id="setMapDate" style="display:block; width:100%; text-align:center; font-size:1.5em; color:#336699;">
+        <!-- show/hide availability toggle -->
+        <span
+            style="background-color: #fff; color: #336699; padding-top:3px; padding-bottom: 3px; padding-left:7px; padding-right: 7px; border:1px solid #ccc; border-radius: 7px; margin:7px;">
+            <label for="showAvailability" data-attr="toggleVacancy" data-attr-state="this.checked">Show Vacancy:</label>
+            <input type="checkbox" id="showAvailability" name="showAvailability" style="size: 25px;">
+        </span>
+        <!-- capture arrival date, with a minimum and default of today, no maximum; only using javascript -->
+        <label id="mapDateLabel" for="mapDate" style="clear: both;">&nbsp;<br />Arrival:</label>
+        <input type="date" id="mapDate" name="mapDate" style="width:175px; font-size: 1em;">
+        <!-- caputre number of nights, with a minimum of 1 to a maximum of 21 -->
+        <label id="mapNightsLabel" for="mapNights">Nights:</label>
+        <input type="number" id="mapNights" name="mapNights" min="1" max="21" style="width:55px; font-size: 1em;"
+            value="1">
+    </form>
+</div>
+
+
+
+<link rel="stylesheet" href="https://cdn.mountkiddrv.com/libs/css/tingle.min.css" />
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
+
+<div id="mkmap_svg_container" style="width: 100%;">
+    <div class="controls-zoom">
+        <p><i class="btn btn-info fa fa-plus" onclick="zoomIn()"></i> </p>
+        <p><i class="btn btn-info fa fa-minus" onclick="zoomOut()"></i></p>
+    </div>
+    <svg id="mkmap_svg"></svg>
+</div>
+<script defer src="https://cdn.mountkiddrv.com/libs/js/tingle.min.js"></script>
+<script>
+    var reloader;
+    var useDateSetByUser = false;
+    var sites_models = [];
+    var showAvailability = document.getElementById('showAvailability').checked;
+    var activeSiteGroupModal = '';
+
+    var currentBookingWindowLatestArrival = '';
+
+    //colors for state of sites
+    var colors = [
+        '#339933', // available
+        '#990000', // reserved
+        '#ccc'     // unavailable
+    ];
+
+    function formSubmit(f) {
+        f.preventDefault();
+        return false;
+    };
+
+    var nights = 1; //default number of nights to show availability for
+
+    document.addEventListener("DOMContentLoaded", function () {
+        //hide the form fields for date and nights by default
+        document.getElementById('mapDate').disabled = true;
+        document.getElementById('mapNights').disabled = true;
+        document.getElementById('mapDate').style.display = 'none';
+        document.getElementById('mapDateLabel').style.display = 'none';
+        document.getElementById('mapNights').style.display = 'none';
+        document.getElementById('mapNightsLabel').style.display = 'none';
+        document.getElementById('showingDate').innerHTML = 'RV & Campsite Map';
+
+        // set the default date to today
+        document.getElementById('mapDate').valueAsDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Edmonton' }));
+        // Add a submit event listener to the form
+        document.getElementById("setMapDate").addEventListener("submit", function (event) {
+            // Prevent the default form submit behavior
+            event.preventDefault();
+        });
+
+        // check if the user has requested to show availability
+        document.getElementById('showAvailability').addEventListener('change', function (e) {
+            e.preventDefault();
+            showAvailability = document.getElementById('showAvailability').checked;
+            //disable and hide the date and nights, and their labels, form if the user doesn't want to see availability
+            if (!showAvailability) {
+                //stop the reloader
+                clearInterval(reloader);
+
+                //hide the date and nights, and their labels, form
+                document.getElementById('mapDate').disabled = true;
+                document.getElementById('mapNights').disabled = true;
+                document.getElementById('mapDate').style.display = 'none';
+                document.getElementById('mapDateLabel').style.display = 'none';
+                document.getElementById('mapNights').style.display = 'none';
+                document.getElementById('mapNightsLabel').style.display = 'none';
+                document.getElementById('showingDate').innerHTML = 'RV & Campsite Map';
+            } else {
+                //start the reloader
+                reloader = setInterval(updateSitesData, 15000); // Update the data every x seconds
+
+                //show the date and nights, and their labels, form
+                document.getElementById('mapDate').disabled = false;
+                document.getElementById('mapNights').disabled = false;
+                document.getElementById('mapDate').style.display = 'inline-block';
+                document.getElementById('mapDateLabel').style.display = 'inline-block';
+                document.getElementById('mapNights').style.display = 'inline-block';
+                document.getElementById('mapNightsLabel').style.display = 'inline-block';
+            }
+            //updateSitesData(derivedDate()); 
+        });
+
+        //capture click on date field and open calendar
+        document.getElementById('mapDate').addEventListener("click", function (e) {
+            // Trigger a click event on the date input
+            e.focus();
+        });
+
+        //capture any change in the form
+        document.getElementById('setMapDate').addEventListener('change', function (e) {
+            e.preventDefault();
+            useDateSetByUser = true;
+            nights = Math.min(21, document.getElementById('mapNights').value);
+            updateSitesData(derivedDate());
+            document.getElementById('mapNights').value = nights;
+        });
+    });
+
+    //plurlize a word
+    function plurlize(count, word) {
+        return (count === 1) ? word : word + 's';
+    }
+
+    //get date and time by default; TODO: get from user input
+    function derivedDate() {
+
+        if (!showAvailability) {
+            return '';
+        }
+
+        var currentDate = (useDateSetByUser) ? new Date(document.getElementById('mapDate').value) : new Date().toLocaleString("en-US", { timeZone: "America/Edmonton" }).split(',')[0];
+        document.getElementById('mapDate').value = new Date(currentDate).toISOString().split('T')[0]; //set the date in the form
+        document.getElementById('showingDate').innerHTML = (showAvailability) ? 'Showing Vacancy for ' + nights + ' ' + plurlize(nights, 'night') + ' Arriving on ' + new Date(currentDate).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: '2-digit', year: 'numeric' }) + currentBookingWindowLatestArrival : 'RV & Campsite Map';
+
+        return new Date(currentDate).toISOString().split('T')[0];
+    }
+
+    var variables = async () => ({
+        'showReserved': showAvailability,
+        'showAvailable': showAvailability,
+        'filters': {
+            'date': {
+                'use': showAvailability,
+                'arrival': derivedDate(),
+                'nights': nights
+            },
+            'features': {
+                'sizes': {
+                    'small': true, //feature id 12
+                    'medium': true, //feature id 13
+                    'large': true //feature id 14
+                },
+                'pullthrough': true, //feature id 17
+                'backin': true, //feature id 18
+                'tv': true, //feature id 11
+                'adjoined': true, //feature id 19
+                'near': {
+                    'neighbours': true, //feature id  20
+                    'washrooms': true, //feature id  23
+                    'bikepath': true, //feature id  24
+                    'walkingpath': true, //feature id  25
+                    'playground': true, //feature id  26
+                    'camperscentre': true, //feature id  27
+                    'river': true, //feature id  28
+                    'watertap': true //feature id  29
+                },
+                'tentonly': true, //feature id 22
+                'partiallytreed': true, //feature id 15
+                'fairlyveryopen': true, //feature id 21
+            },
+            'services': {
+                'powerwater': true, //service id 9
+                'fullservice': true, //service id 10
+                'power': true, //service id 8
+                'noservices': true //service id 7
+            },
+        }
+    });
+
+    //service_ids to text
+    const service_ids = {
+        '9': 'powerwater',
+        '10': 'fullservice',
+        '8': 'power',
+        '7': 'noservices'
+    };
+
+    //feature_ids to text
+    const feature_ids = {
+        '12': 'small',
+        '13': 'medium',
+        '14': 'large',
+        '17': 'pullthrough',
+        '18': 'backin',
+        '11': 'tv',
+        '19': 'adjoined',
+        '20': 'neighbours',
+        '23': 'washrooms',
+        '24': 'bikepath',
+        '25': 'walkingpath',
+        '26': 'playground',
+        '27': 'camperscentre',
+        '28': 'river',
+        '29': 'watertap',
+        '22': 'tentonly',
+        '15': 'partiallytreed',
+        '21': 'fairlyveryopen'
+    };
+
+    //live data of each site from node-red queue subscriptions
+    var sitesDataObject = {
+        //fake data for now
+    }
+
+    var dimmer;
+    var activecontent;
+
+
+    async function loadModalContent(siteGroup) {
+        var content = [];
+
+        // Set the content of the modal (0=available, 1=reserved, 2=unavailable)
+        var stateToReserved = (!showAvailability) ? { 'text': '', 'bgcolor': '#fff' } : (sitesDataObject[siteGroup.lsname]['state'] == '0')
+            ? { 'text': 'Available', 'bgcolor': '#339933' } : (sitesDataObject[siteGroup.lsname]['state'] == '1') ? { 'text': 'Reserved', 'bgcolor': '#993333' } : { 'text': 'Unavailable', 'bgcolor': '#ccc' };
+
+        // Set service text
+        var serviceText = '<p style="color:#336699; display:block; text-align:center; width:100%;">Services:&nbsp;';
+        switch (sitesDataObject[siteGroup.lsname]['service_id']) {
+            case 7:
+                serviceText += 'No Services</p>';
+                break;
+            case 8:
+                serviceText += 'Power</p>';
+                break;
+            case 9:
+                serviceText += 'Power & Water</p>';
+                break;
+            case 10:
+                serviceText += 'Full Service</p>';
+                break;
+            default:
+                serviceText = '';
+        }
+
+        // checkinDate formated as Thu May 4, 2023
+        var checkinDate = new Date(derivedDate()).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: '2-digit', year: 'numeric' })
+        // checkoutDate formated as Thu May 4, 2023 without time and timezone
+        var checkoutDate = new Date(checkinDate);
+        checkoutDate.setDate(checkoutDate.getDate() + nights);
+        checkoutDate = checkoutDate.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+
+        var windowOpenDate = new Date(checkinDate);
+        windowOpenDate.setDate(windowOpenDate.getDate() - 90);
+
+        var availHelper = (!showAvailability) ? '' : (nights > 1) ? `<p style="color:#336699; display:block; text-align:center; width:100%; line-height:1em; font-size:1.5em; padding-bottom:17px;">
+                        ${checkinDate} - ${checkoutDate} (${nights}&nbsp;${plurlize(nights, 'night')})&nbsp;<span style="display: inline-block; padding: 0.25em 0.4em; font-size: 75%; font-weight: 700; line-height: 1; color: #fff; text-align: center; white-space: nowrap; vertical-align: baseline; border-radius: 0.25rem; background-color:${stateToReserved.bgcolor}">${stateToReserved.text}</span>
+                    </p>` : `<p style="color:#336699; display:block; text-align:center; width:100%; line-height:1em; font-size:1.5em; padding-bottom:17px;">${checkinDate}&nbsp;<span style="display: inline-block; padding: 0.25em 0.4em; font-size: 75%; font-weight: 700; line-height: 1; color: #fff; text-align: center; white-space: nowrap; vertical-align: baseline; border-radius: 0.25rem; background-color:${stateToReserved.bgcolor}">${stateToReserved.text}</span>
+                    </p>`;
+
+        var bookingWindowNotice = (showAvailability) ? `<hr style="width:80%; display:block;" clear="all"/><h2 style="color:#336699;">Vacancy</h2>${availHelper}<p style="color:#336699; padding:17px;">Booking arrivals for ${checkinDate} start on:<br/>${windowOpenDate.toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: '2-digit', year: 'numeric' })} at 10AM Mountain Time</p>`
+            : '';
+
+        var disclaimer = (showAvailability) ? ` <p style="color:#222; font-size:0.8em; text-align:center; width:100%; padding:7px; background-color:#ddd; margin-top:7px;">NOTES<br/>Vacancy data updates with a delay of approximately 30 seconds; refreshing the page does not speed this up.<br/>Sites marked as "unavailable" are either out of service or do not have rate data currently available.</p>` : '';
+
+        content['coverImage'] = `https://cdn.mountkiddrv.com/SitePhotos/Loop${sitesDataObject[siteGroup.lsname]['loopname']}/${sitesDataObject[siteGroup.lsname]['sitename']}/Loop${sitesDataObject[siteGroup.lsname]['loopname']}-Site${sitesDataObject[siteGroup.lsname]['sitename']}.jpg`
+
+        var featureList = '';
+        Object.keys(sitesDataObject[siteGroup.lsname]['features']).forEach(item => {
+
+            featureList += `<li>${sitesDataObject[siteGroup.lsname]['features'][item]}</li>`;
+
+        });
+
+        content['html'] = `
+                    <h2 style="color:#336699; display:block; text-align:center; width:100%;">
+                    Loop ${sitesDataObject[siteGroup.lsname]['loopname']}
+                     Site ${sitesDataObject[siteGroup.lsname]['sitename']}</h2>
+                    ${serviceText}
+                     
+                     <p style="color:#336699; display:block; text-align:center; width:100%; padding:7px;">${sitesDataObject[siteGroup.lsname]['description']}<br/>
+                        <img src="${content.coverImage}" style="width:100%; display:block; margin:0 auto; padding:7px;" onerror="this.src='https://cdn.mountkiddrv.com/SitePhotos/default_placeholder.jpeg'; this.style.maxWidth='350px'"/>
+                     </p>
+                     <hr style="width:80%; display:block;" clear="all"/>
+                     <p style="color:#336699; font-weight:500">Site Features:<br/>
+                     <ul style="color:#336699;">${featureList}</ul></p>
+                     ${bookingWindowNotice}
+                     ${disclaimer}
+                `;
+
+        return content;
+    }
+
+    function setupMapInteractivity() {
+        const siteGroups = document.querySelectorAll('g[id^="site"]');
+
+        siteGroups.forEach(siteGroup => {
+
+            // Get the name of the site group
+            const groupName = siteGroup.getAttribute('id');
+
+            // Set the content and position of the tooltip
+            siteGroup.lsname = groupName.split("site")[1];
+
+            siteGroup.setAttribute('data-toggle', 'tooltip');
+            siteGroup.setAttribute('data-html', 'true');
+            siteGroup.setAttribute('data-placement', 'top');
+            siteGroup.setAttribute('data-container', 'body');
+
+
+
+            siteGroup.setAttribute('title', `<h2>Loop ${sitesDataObject[siteGroup.lsname]['loopname']} Site ${sitesDataObject[siteGroup.lsname]['sitename']}</h2><p><small>tap for more details</small></p>`);
+            $('#' + groupName).tooltip();
+
+            siteGroup.addEventListener('mouseover', event => {
+                // mouseover color
+                siteGroup.querySelector('path, polygon').setAttribute('style', 'fill:#336699');
+
+                // Prevent default behavior
+                event.preventDefault();
+            });
+
+            siteGroup.addEventListener('mouseout', event => {
+                siteGroup.querySelector('path, polygon').setAttribute('style', 'fill:' + siteGroup.activeColor);
+
+                // Prevent default behavior
+                event.preventDefault();
+            });
+
+            siteGroup.addEventListener('click', async function (e) {
+                // Show a page-dimming modal that can only be exited with the existing functionality of the modal
+                activeSiteGroupModal = siteGroup.lsname;
+
+                // create modal if it doesn't already exist
+                if (!dimmer) {
+                    dimmer = new tingle.modal({
+                        closeMethods: ['overlay', 'button', 'escape'],
+                        footer: true,
+                        onClose: function () {
+                            // deregister this siteGroup as the active siteGroup
+                            //console.error('dimmer.onClose()'); // debug
+                            activeSiteGroupModal = '';
+                            activecontent = [];
+                            //('activecontent',activecontent); // debug
+                            //console.error('activeSiteGroupModal', activeSiteGroupModal); // debug
+                        },
+                        onOpen: function () {
+                            // register this siteGroup as the active siteGroup so that when updateSitesData() it will trigger a new click event to update the data on screen live
+                            //console.error('dimmer.onOpen()'); // debug
+                            //console.error('activeSiteGroupModal', activeSiteGroupModal); // debug
+                        },
+                    });
+                }
+
+                // Set content
+                var xc = await loadModalContent(siteGroup);
+                //console.error('xc',xc); // debug
+
+                dimmer.setContent(xc.html);
+                activecontent = xc.html;
+
+                dimmer.setFooterContent(`
+                    <h2 style="color:#336699;">More Information</h2>
+                `);
+
+                dimmer.addFooterBtn('Close', 'tingle-btn tingle-btn--danger tingle-btn--pull-right', function () {
+                    dimmer.close();
+                });
+                dimmer.addFooterBtn('Photos & Reviews', 'tingle-btn tingle-btn--default tingle-btn--pull-left', function () {
+                    window.location.href = `/loop-${sitesDataObject[siteGroup.lsname]['loopname']}-site-${sitesDataObject[siteGroup.lsname]['sitename']}`;
+                });
+
+                //only show reserve button if site is available: todo: implement reservation system
+                /*
+                if (sitesDataObject[siteGroup.lsname]['state'] == '0') {
+                    dimmer.addFooterBtn('Reserve', 'tingle-btn tingle-btn--primary tingle-btn--pull-left', function () {
+                        alert('Reserve site ' + siteGroup.lsname);
+                    });
+                }
+                */
+
+                dimmer.open();
+
+                // Get the image element from the modal
+                var img = dimmer.modalBoxContent.querySelector('img');
+                img.setAttribute('src', xc.coverImage);
+
+                // Set an onload event listener for the Image element
+                img.onload = function () {
+                    // Make the image visible
+                    //img.classList.remove('image-hidden');
+
+                    // Update the modal content height and position
+                    dimmer.checkOverflow();
+                };
+
+                // Prevent default behavior
+                event.preventDefault();
+            });
+        });
+    }
+
+
+    var resapio = {
+        'api_key': 'a3b97193-8237-437j-c13l-2c0ax9bg5145',
+        'api_acct': 'MKRVP',
+    };
+
+    async function updateSitesData() {
+
+        // only run if showing availability
+        if (showAvailability) {
+
+            await fetch('https://api.resap.io/mkrvp-dev/resapio/active-rates', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Origin': 'https://mountkiddrv.com',
+                    'x-resapio-key': resapio.api_key,
+                    'x-resapio-acct': resapio.api_acct,
+                    'x-resapio-payload': JSON.stringify({ f: await variables() })
+                },
+                referrer: 'https://mountkiddrv.com'
+            }).then(function (response) {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    return Promise.reject(response);
+                }
+            }).then(async function (data) {
+                //if data is empty, we need to clear the sitesDataObject
+                if (data.length == 0) {
+                    sitesDataObject = {};
+                }
+
+
+                //populate sitesDataObject with data from resapio
+                await data.forEach(item => {
+                    try {
+                        const itemDeets = JSON.parse(item.searchables);
+                        const tempName = itemDeets[0][derivedDate()].loop + itemDeets[0][derivedDate()].site_name;
+                        sitesDataObject[tempName] = {
+                            'state': item.reserved, //state
+                            'loopname': sites_models[item.site - 1].site_loop, //loopname
+                            'sitename': sites_models[item.site - 1].site_number, //sitenum
+                            'description': '' + sites_models[item.site - 1].site_description, // + ', is in the majestic shadow of Mount Kidd, near the pristine Kananaskis River. You will not be disappointed with this site for your next Nature-Stay!',
+                            'features': sites_models[item.site - 1].all_features || {},
+                            'service_id': itemDeets[0].services || 0,
+                        };
+
+                    } catch (err) {
+                        console.warn('updateSitesData', err, item);
+                    }
+                });
+            }).catch(function (err) {
+                console.warn('activeRatesFetch', err);
+            });
+
+        }
+
+        /*
+        //get current hour for America/Edmonton using plain javascript
+        var currentHour = new Date().toLocaleString("en-US", { timeZone: "America/Edmonton", hour: "numeric" });
+        //if current hour in America/Edmonton is below 10, get today+89 days, else get today+90 days, then set currentBookingWindowLatestArrival = "<strong>90 Day Booking Window</strong>: Latest Arrival Date: [weekday] [month] [month day], [year]"
+        if (currentHour < 10) {
+            currentBookingWindowLatestArrival = "<br/><small style='font-size:.7em; font-weight:200; color:#339933;'>Our 90-Day booking window's latest arrival date: " + new Date(new Date().setDate(new Date().getDate() + 89)).toLocaleDateString("en-US", { timeZone: "America/Edmonton", weekday: "long", month: "long", day: "numeric", year: "numeric" }) + "</small>";
+        } else {
+            currentBookingWindowLatestArrival = "<br/><small style='font-size:.7em; font-weight:200; color:#339933;'>Our 90-Day booking window's latest arrival date: " + new Date(new Date().setDate(new Date().getDate() + 90)).toLocaleDateString("en-US", { timeZone: "America/Edmonton", weekday: "long", month: "long", day: "numeric", year: "numeric" }) + "</small>";
+        }
+        */
+
+        // get current hour for America/Edmonton using Luxon
+        var currentHour = luxon.DateTime.now().setZone('America/Edmonton').hour;
+
+        // if current hour in America/Edmonton is below 10, get today+89 days, else get today+90 days
+        // then set currentBookingWindowLatestArrival = "<strong>90 Day Booking Window</strong>: Latest Arrival Date: [weekday] [month] [month day], [year]"
+        var daysToAdd = currentHour < 10 ? 89 : 90;
+
+        // calculate the new date
+        var newDate = luxon.DateTime.now().plus({ days: daysToAdd }).setZone('America/Edmonton');
+
+        // format the new date
+        var formattedDate = newDate.toFormat('EEEE LLLL d, y');
+
+        // create the message
+        currentBookingWindowLatestArrival = "<br/><small style='font-size:.7em; font-weight:200; color:#339933;'>Our 90-Day booking window's latest arrival date: " + formattedDate + "</small>";
+
+
+
+        // Update the colors of the site groups based on the updated data
+        const siteGroups = document.querySelectorAll('g[id^="site"]');
+        await siteGroups.forEach(async function (siteGroup) {
+            const groupName = siteGroup.getAttribute('id');
+            const lsname = groupName.split("site")[1];
+
+            if (!showAvailability || !sitesDataObject[lsname]) {
+                sitesDataObject[lsname] = {
+                    'state': 2,
+                    'loopname': lsname.slice(0, 1),
+                    'sitename': lsname.slice(1),
+                    'description': '' + sites_models[siteidref[lsname] - 1].site_description,
+                    'features': sites_models[siteidref[lsname] - 1].all_features || {}
+                };
+                siteGroup.activeColor = colors[sitesDataObject[lsname].state];
+                siteGroup.querySelector('path, polygon').setAttribute('style', 'fill:' + siteGroup.activeColor);
+            } else {
+                siteGroup.activeColor = colors[sitesDataObject[lsname].state];
+                siteGroup.querySelector('path, polygon').setAttribute('style', 'fill:' + siteGroup.activeColor);
+            }
+
+            //update active modal if it is open for this site
+            if (activeSiteGroupModal == lsname) {
+                //trigger the click even on the site group
+                var xc = await loadModalContent(siteGroup);
+                //console.error('contentcheck', activecontent == xc.html);
+                if (xc.html !== activecontent) {
+                    activecontent = xc.html;
+                    dimmer.setContent(xc.html);
+                }
+
+                //document.querySelector('g[id="site'+lsname+'"]').dispatchEvent(new Event('click'));
+            }
+
+        });
+        /*
+                })
+                .catch(function (err) {
+                    console.warn('some error', err);
+                });
+        */
+    };
+
+
+    function setSvgContainerHeight() {
+        const container = document.getElementById('mkmap_svg_container');
+        const svg = document.getElementById('mkmap_svg');
+        const svgContent = svg.querySelector('svg');
+
+        if (svgContent) {
+            const viewBox = svgContent.getAttribute('viewBox').split(' ');
+            const width = parseFloat(viewBox[2]);
+            const height = parseFloat(viewBox[3]);
+            const aspectRatio = height / width;
+
+            const newHeight = `${container.clientWidth * aspectRatio}px`;
+            container.style.height = newHeight;
+            svg.style.height = newHeight; // Add this line
+        }
+    }
+
+    window.addEventListener('load', function () {
+        initialize();
+    });
+
+    async function initialize() {
+        const svg = document.getElementById('mkmap_svg');
+        const container = document.getElementById('mkmap_svg_container');
+        function shouldEnablePanZoom() {
+            return false;
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+            return viewportWidth <= 900; // Adjust this value based on the breakpoint you want to use
+        }
+
+        fetch('https://cdn.mountkiddrv.com/sites_models.json')
+            .then(response => response.json())
+            .then(data => {
+                sites_models = data;
+                //console.error('sites_models fetched', sites_models);
+            })
+            .then(() => {
+                fetch('https://cdn.mountkiddrv.com/libs/svg/MountKiddSVGMap.svg')
+                    .then(response2 => response2.text())
+                    .then(svgData => {
+                        const parser = new DOMParser();
+                        const svgDoc = parser.parseFromString(svgData, 'image/svg+xml');
+                        svg.appendChild(svgDoc.documentElement);
+                        //console.error('SVG loaded');
+                        svg.style.display = 'block';
+                        return true;
+                    })
+                    .then(async () => {
+                        var x = await updateSitesData();
+                        //console.error('updateSitesData done', x);
+                        setupMapInteractivity();
+                        //console.error('setupMapInteractivity done');
+
+                        setSvgContainerHeight(); // Call the function here
+                        window.addEventListener('resize', setSvgContainerHeight);
+
+                        // debugger
+                        $("#Layer_2").html('<polygon points="0 0 20000 0 20000 20000 0 20000" style="fill:#00000000;"></polygon>' + $("#Layer_2").html())
+
+                        svgMap = $($("#mkmap_svg").children()[0]).svgPanZoom( {
+                            events: {
+                                mouseWheel: true,
+                                doubleClick: true,
+                                drag: true,
+                                dragCursor: "move"
+                            },
+                            animationTime: 300,
+                            zoomFactor: 0.25,
+                            maxZoom: 3,
+                            panFactor: 100,
+                            initialViewBox: null,
+                            limits: null
+                        });
+
+                        // if (shouldEnablePanZoom()) {
+                        //     // Add svgPanZoom
+                        //     svgPanZoom(svg, {
+                        //         controlIconsEnabled: true,
+                        //         fit: true,
+                        //         center: true,
+                        //         minZoom: 1,
+                        //         maxZoom: 10,
+                        //         zoomScaleSensitivity: 0.5,
+                        //         dblClickZoomEnabled: true,
+                        //     });
+                        // }
+                    })
+                    .catch(error => {
+                        console.error('svg fetch', error);
+                    });
+            })
+            .catch(error => {
+                console.error('models fetch', error);
+            });
+    };
+
+    function zoomIn() {
+        if( svgMap ) svgMap.zoomIn();
+    }
+
+    function zoomOut() {
+        if( svgMap ) svgMap.zoomOut();
+    }    
+
+    var svgMap;
+    const siteidref = { "A1": 1, "A2": 2, "A3": 3, "A4": 4, "A5": 5, "A6": 6, "A7": 7, "A8": 8, "A9": 9, "A10": 10, "A11": 11, "A12": 12, "A13": 13, "A14": 14, "A15": 15, "A16": 16, "A17": 17, "A18": 18, "A19": 19, "A20": 20, "A21": 21, "A22": 22, "A23": 23, "A24": 24, "A25": 25, "A26": 26, "A27": 27, "A28": 28, "A29": 29, "A30": 30, "A31": 31, "A32": 32, "A33": 33, "A34": 34, "A35": 35, "B1": 36, "B2": 37, "B3": 38, "B4": 39, "B5": 40, "B6": 41, "B7": 42, "B8": 43, "B9": 44, "B10": 45, "B11": 46, "B12": 47, "B13": 48, "B14": 49, "B15": 50, "B16": 51, "B17": 52, "B18": 53, "B19": 54, "B20": 55, "B21": 56, "B22": 57, "B23": 58, "B24": 59, "B25": 60, "B26": 61, "B27": 62, "B28": 63, "C1": 64, "C2": 65, "C3": 66, "C4": 67, "C5": 68, "C6": 69, "C7": 70, "C8": 71, "C9": 72, "C10": 73, "C11": 74, "C12": 75, "C13": 76, "C14": 77, "C15": 78, "C16": 79, "C17": 80, "C18": 81, "C19": 82, "C20": 83, "C21": 84, "C22": 85, "C23": 86, "C24": 87, "C25": 88, "C26": 89, "C27": 90, "C28": 91, "C29": 92, "C30": 93, "C31": 94, "C32": 95, "C33": 96, "C34": 97, "C35": 98, "C36": 99, "C37": 100, "C38": 101, "C39": 102, "C40": 103, "C41": 104, "C42": 105, "C43": 106, "C44": 107, "C45": 108, "C46": 109, "C47": 110, "C48": 111, "C49": 112, "C50": 113, "C51": 114, "C52": 115, "C53": 116, "C54": 117, "C55": 118, "C56": 119, "C57": 120, "C58": 121, "C59": 122, "C60": 123, "C61": 124, "D1": 125, "D2": 126, "D3": 127, "D4": 128, "D5": 129, "D6": 130, "D7": 131, "D8": 132, "D9": 133, "D10": 134, "D11": 135, "D12": 136, "D13": 137, "D14": 138, "D15": 139, "D16": 140, "D17": 141, "D18": 142, "D19": 143, "D20": 144, "D21": 145, "D22": 146, "D23": 147, "D24": 148, "D25": 149, "D26": 150, "D27": 151, "E1": 152, "E2": 153, "E3": 154, "E4": 155, "E5": 156, "E6": 157, "E7": 158, "E8": 159, "E9": 160, "E10": 161, "E11": 162, "E12": 163, "E13": 164, "E14": 165, "E15": 166, "E16": 167, "E17": 168, "E18": 169, "E19": 170, "E20": 171, "E21": 172, "E22": 173, "E23": 174, "E24": 175, "E25": 176, "E26": 177, "E27": 178, "E28": 179, "E29": 180, "E30": 181, "E31": 182, "E32": 183, "E33": 184, "E34": 185, "E35": 186, "E36": 187, "E37": 188, "E38": 189, "E39": 190, "E40": 191, "E41": 192, "E42": 193, "E43": 194, "E44": 195, "E45": 196, "E46": 197, "F1": 198, "F2": 199, "F3": 200, "F4": 201, "F5": 202, "F6": 203, "F7": 204, "F8": 205, "F9": 206, "F10": 207, "F11": 208, "F12": 209, "F13": 210, "F14": 211, "F15": 212, "F16": 213, "F17": 214, "F18": 215, "F19": 216, "F20": 217, "F21": 218, "F22": 219, "F23": 220, "F24": 221, "F25": 222, "F26": 223, "F27": 224, "F28": 225, "F29": 226, "F30": 227, "F31": 228, "F32": 229 };
+
+</script>
+<div style="margin:24px;">
+    <p
+        style="color:#222; font: size 1.25em; text-align:center; width:100%; padding:7px; background-color:#ddd; margin: top 27px;">
+        NOTES<br />Vacancy data updates with a delay of approximately 30 seconds; refreshing the page does not speed
+        this
+        up.<br />Sites marked as "unavailable" are either out of service or do not have rate data currently available.
+    </p>
+</div>

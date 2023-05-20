@@ -2,6 +2,7 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .oai_queries import *
+import django.core.serializers
 
 
 # @csrf_exempt
@@ -107,8 +108,34 @@ def getProductInformation(request):
     if amazonUrl == None or amazonUrl == '':
         return JsonResponse({'response': 'Fetch error, try again'})
     
-    pdInfo = scrape_amazon_data(amazonUrl, cookie, True)
+    pdInfo, reviews = scrape_amazon_data(amazonUrl, cookie, asin, True)
+    
+    save_reviews(amazonUrl, cookie, asin)
+    getAnswer('Hello', asin)
+
     return JsonResponse({'response': pdInfo})
+@csrf_exempt
+def saveReviews(request):
+    reviews = []; asin = ''
+    if request.method == 'POST':
+        reviews = request.POST.get('reviews')
+        asin = request.POST.get('asin')
+    if request.method == 'GET':
+        reviews = request.GET.get('reviews')
+        asin = request.GET.get('asin')
+    
+    reviews = json.loads(reviews)
+
+    if asin == None or asin == '':
+        return JsonResponse({'status': False, 'response': 'Fetch error, try again with asin'})
+    if len(reviews) == 0:
+        return JsonResponse({'status': False, 'response': 'Fetch error, try again with reviews'})
+    
+    save_uploaded_reviews(asin, reviews)
+    getAnswer('Hello', asin)
+
+    return JsonResponse({'status': True, 'response': 'success'})
+
 
 @csrf_exempt
 def getAnswerFromReviews(request):
@@ -131,20 +158,26 @@ def getAnswerFromReviews(request):
     if prompt == None or prompt == '':
         return JsonResponse({'response': 'Fetch error, try again'})
 
-    save_reviews(amazonUrl, cookie, asin)
+    # save_reviews(amazonUrl, cookie, asin)
 
     if prompt == 'Initial Question':
-        prompts = [ 
-            { 'asin': asin, 'title': '🌟Top Negative Keywords and Phrases', 'question':'Please provide a 5-7 bullet-point list of the most frequently mentioned negative keywords and phrases in the customer reviews, indicating areas for improvement. Include relevant quotations or snippets from the reviews to illustrate each point. Additionally, include an estimated hit rate in percentage (no more than 60%) for each topic, representing how often it appears in the reviews.', 'answer': ''},
-            { 'asin': asin, 'title': '🌟Top Positive Keywords and Phrases', 'question':'Please provide a 5 bullet-point list of the most frequently mentioned positive keywords and phrases in the customer reviews, indicating areas for improvement. Include relevant quotations or snippets from the reviews to illustrate each point. Additionally, provide an estimated hit rate in percentage (no more than 60%) for each topic, representing how often it appears in the reviews.', 'answer': ''},
-            { 'asin': asin, 'title': '🌟Product Features Requests:', 'question':'Analyze the customer reviews to identify 4 to 8 product features that could be improved, starting with the most requested feature. For each feature, provide a practical suggestion on how to improve the product.', 'answer': ''},
-            { 'asin': asin, 'title': '🌟New Variation Recommendations:', 'question':'Analyze the customer reviews and identify product variation suggestions, such as additional colors, sizes, or flavors, that customers mention. Please provide a bullet-point list of the new variation ideas.', 'answer': ''},
-            { 'asin': asin, 'title': '🌟Bundle opportunities:',     'question':"Analyze the customer reviews and examine research on the consumer decision-making process within the product's niche, providing a brief overview of the stages customers go through before making a purchase and any unique aspects related to this product category.", 'answer': ''}
-        ]
-        for item in prompts:
-            ret, response = getAnswer(item.get("question"), asin)
-            item["answer"] = response
-        return JsonResponse({'response': json.dumps(prompts)})
+        # prompts = [
+        #     { 'asin': asin, 'title': '🌟Top Negative Keywords and Phrases', 'question':'Please provide a 5-7 bullet-point list of the most frequently mentioned negative keywords and phrases in the customer reviews, indicating areas for improvement. Include relevant quotations or snippets from the reviews to illustrate each point. Additionally, include an estimated hit rate in percentage (no more than 60%) for each topic, representing how often it appears in the reviews.', 'answer': ''},
+        #     { 'asin': asin, 'title': '🌟Top Positive Keywords and Phrases', 'question':'Please provide a 5 bullet-point list of the most frequently mentioned positive keywords and phrases in the customer reviews, indicating areas for improvement. Include relevant quotations or snippets from the reviews to illustrate each point. Additionally, provide an estimated hit rate in percentage (no more than 60%) for each topic, representing how often it appears in the reviews.', 'answer': ''},
+        #     { 'asin': asin, 'title': '🌟Product Features Requests:', 'question':'Analyze the customer reviews to identify 4 to 8 product features that could be improved, starting with the most requested feature. For each feature, provide a practical suggestion on how to improve the product.', 'answer': ''},
+        #     { 'asin': asin, 'title': '🌟New Variation Recommendations:', 'question':'Analyze the customer reviews and identify product variation suggestions, such as additional colors, sizes, or flavors, that customers mention. Please provide a bullet-point list of the new variation ideas.', 'answer': ''},
+        #     { 'asin': asin, 'title': '🌟Bundle opportunities:',     'question':"Analyze the customer reviews and examine research on the consumer decision-making process within the product's niche, providing a brief overview of the stages customers go through before making a purchase and any unique aspects related to this product category.", 'answer': ''}
+        # ]
+        question = ''
+        if request.method == 'POST':
+            question = request.POST.get('question')
+        if request.method == 'GET':
+            question = request.GET.get('question')
+
+        ret, answer = getAnswer(question, asin)
+        response = { 'question': question, 'answer': answer }
+        # json = django.core.serializers.serialize('json', [response]).stripe('[]')
+        return JsonResponse({'response': response })
     else:
         ret, response = getAnswer(prompt, asin)
         return JsonResponse({'response': response})

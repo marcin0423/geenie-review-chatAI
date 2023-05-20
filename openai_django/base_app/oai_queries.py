@@ -61,60 +61,80 @@ def init_AIengine_from_asin(asin):
             return None, False
     return None, False
 
-def init_all_amazon_reviews():    
-    pathList = os.listdir(amazonReviewDir)
-    for path in pathList:
-        if os.path.isfile(os.path.join(amazonReviewDir, path)) and path.endswith(".txt") and os.path.getsize(os.path.join(amazonReviewDir, path)) > 0:
-            asin = Path(amazonReviewDir + path).stem
+# def init_all_amazon_reviews():    
+#     pathList = os.listdir(amazonReviewDir)
+#     for path in pathList:
+#         if os.path.isfile(os.path.join(amazonReviewDir, path)) and path.endswith(".txt") and os.path.getsize(os.path.join(amazonReviewDir, path)) > 0:
+#             asin = Path(amazonReviewDir + path).stem
 
-            print( 'train asin:', asin )
-            QA, ret = init_AIengine_from_asin(asin)
-            if ret == True:
-                print('success')
-                amazonQAs.append( [asin, QA] )
+#             print( 'train asin:', asin )
+#             QA, ret = init_AIengine_from_asin(asin)
+#             if ret == True:
+#                 print('success')
+#                 amazonQAs.append( [asin, QA] )
 
-def generate_response_gpt3(message_list):
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-                     {"role": "user", "content": "Who are you?"},
-                     {"role": "system",
-                      "content": "You are an AI named sonic and you are in a conversation with a human. You can answer "
-                                 "questions, provide information, and help with a wide variety of tasks."},
-                     {"role": "assistant",
-                      "content": "I am the sonic powered by ChatGpt.Contact me sonic@deadlyai.com"},
-                 ] + message_list
-    )
+# def generate_response_gpt3(message_list):
+#     response = openai.ChatCompletion.create(
+#         model="gpt-3.5-turbo",
+#         messages=[
+#                      {"role": "user", "content": "Who are you?"},
+#                      {"role": "system",
+#                       "content": "You are an AI named sonic and you are in a conversation with a human. You can answer "
+#                                  "questions, provide information, and help with a wide variety of tasks."},
+#                      {"role": "assistant",
+#                       "content": "I am the sonic powered by ChatGpt.Contact me sonic@deadlyai.com"},
+#                  ] + message_list
+#     )
 
-    return response["choices"][0]["message"]["content"].strip()    
+#     return response["choices"][0]["message"]["content"].strip()    
 
-def get_answer_reviews(prompt, asin):
+# def get_answer_reviews(prompt, asin):
 
-    for i in amazonQAs:
-        if i[0] == asin:
-            try:
-                response = i[1].run(prompt)
-                return response
-            except:
-                return "Sorry, Server Went Wrong."
+#     for i in amazonQAs:
+#         if i[0] == asin:
+#             try:
+#                 response = i[1].run(prompt)
+#                 return response
+#             except:
+#                 return "Sorry, Server Went Wrong."
 
-    # if it doesn't exits, append new review
-    print( 'train asin:', asin )
-    QA, ret = init_AIengine_from_asin(asin)
-    if ret == True:
-        print('train success')
-        amazonQAs.append( [asin, QA] )
-        return get_answer_reviews(prompt, asin)
+#     # if it doesn't exits, append new review
+#     print( 'train asin:', asin )
+#     QA, ret = init_AIengine_from_asin(asin)
+#     if ret == True:
+#         print('train success')
+#         amazonQAs.append( [asin, QA] )
+#         return get_answer_reviews(prompt, asin)
 
-    return "Sorry, I don't know."
-    # response = generate_response_gpt3(prompt)
+#     return "Sorry, I don't know."
+#     # response = generate_response_gpt3(prompt)
+
+def save_uploaded_reviews(asin, reviews):
+    destFile = open(amazonReviewDir + asin + '.txt', 'w', -1, 'utf-8')
+    for result in reviews:
+        # print(result)
+        # print(result["customer_review"])
+        data = result["customer_review"]
+        data = re.sub('\n|\r\n', ' ', data)
+        destFile.write(data)
+        destFile.write('\n\n')
+    destFile.close()
+
+    jsonRet = json.dumps(reviews)
+    destFile = open(amazonReviewDir + asin + '.json', 'w', -1, 'utf-8')
+    destFile.write(jsonRet)
+    destFile.close()
+
+    upload_reviews(settings.GOOGLE_DRIVE_STORAGE_MEDIA_ROOT, amazonReviewDir + asin + '.json', asin + '.json' )
+
+    return amazonReviewDir + asin + '.json'
 
 def save_reviews(amazonUrl, cookie, asin):
     destPath = amazonReviewDir + asin
     if os.path.exists(destPath + '.txt') and os.path.getsize(destPath + '.txt') > 0:
         return destPath + '.json'
 
-    pdInfo, results= scrape_amazon_data(amazonUrl, cookie)
+    pdInfo, results= scrape_amazon_data(amazonUrl, cookie, asin)
 
     destFile = open(destPath + '.txt', 'w', -1, 'utf-8')
     for result in results:
@@ -133,10 +153,11 @@ def save_reviews(amazonUrl, cookie, asin):
 
     return destPath + '.json'
 
-def get_product_infos(amazonUrl, cookie):
-    pdInfo, results = scrape_amazon_data(amazonUrl, cookie, True)
+def get_product_infos(amazonUrl, cookie, asin):
+    pdInfo, results = scrape_amazon_data(amazonUrl, cookie, asin, True)
     return pdInfo
 
+import requests
 def getAnswer(prompt, asin):
     for i in amazonQAs:
         if i[0] == asin:
@@ -157,6 +178,14 @@ def getAnswer(prompt, asin):
         return ret, response
 
     return False, "Sorry, I don't know."
+    # print( 'question:', prompt )
+    # headers = { 'Authorization': 'Bearer 0c61b7b1-9960-4ee3-abae-de44a0bc2ef5', 'Content-Type': 'text/plain' }
+    # data = { "input": f"{prompt} my product's reviews :[https://www.amazon.com/product-reviews/{asin}]" }
+
+    # req = requests.post('https://api.bardapi.dev/chat', headers=headers, json=data)
+    # print( 'answer:', req.json() )
+    # return True, json.loads( req.json() )['output']
+    # return True, response
 
 # query = "OK"
 # print(amazonQA.run(query))

@@ -132,7 +132,7 @@ def save_uploaded_reviews(asin, reviews):
 def save_reviews(amazonUrl, cookie, asin):
     destPath = amazonReviewDir + asin
     if os.path.exists(destPath + '.txt') and os.path.getsize(destPath + '.txt') > 0:
-        return destPath + '.json'
+        return False
 
     pdInfo, results= scrape_amazon_data(amazonUrl, cookie, asin)
 
@@ -151,7 +151,7 @@ def save_reviews(amazonUrl, cookie, asin):
 
     upload_reviews(settings.GOOGLE_DRIVE_STORAGE_MEDIA_ROOT, destPath + '.json', asin + '.json' )
 
-    return destPath + '.json'
+    return True
 
 def get_product_infos(amazonUrl, cookie, asin):
     pdInfo, results = scrape_amazon_data(amazonUrl, cookie, asin, True)

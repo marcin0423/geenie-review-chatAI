@@ -114,6 +114,7 @@ def getProductInformation(request):
     getAnswer('Hello', asin)
 
     return JsonResponse({'response': pdInfo})
+
 @csrf_exempt
 def saveReviews(request):
     reviews = []; asin = ''
@@ -133,6 +134,22 @@ def saveReviews(request):
     
     save_uploaded_reviews(asin, reviews)
     getAnswer('Hello', asin)
+
+    return JsonResponse({'status': True, 'response': 'success'})
+
+@csrf_exempt
+def getUploadReviewAvailable(request):
+    if request.method == 'POST':
+        asin = request.POST.get('asin')
+    if request.method == 'GET':
+        asin = request.GET.get('asin')
+
+    if asin == None or asin == '':
+        return JsonResponse({'status': False, 'response': 'Fetch error, try again with asin'})
+        
+    destPath = amazonReviewDir + asin
+    if os.path.exists(destPath + '.txt') and os.path.getsize(destPath + '.txt') > 10:
+        return JsonResponse({'status': False, 'response': 'success'})
 
     return JsonResponse({'status': True, 'response': 'success'})
 

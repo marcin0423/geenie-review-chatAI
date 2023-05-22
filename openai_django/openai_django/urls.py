@@ -25,6 +25,8 @@ urlpatterns = [
 
     path('api/pdinfo/get', getProductInformation, name='query'),
     path('api/chat/ext', getAnswerFromReviews, name='query'),
+    
 
+    path('api/upload/available', getUploadReviewAvailable, name='query'),
     path('api/upload/reviews', saveReviews, name='query')
 ]

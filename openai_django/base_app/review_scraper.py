@@ -35,6 +35,9 @@ def scrape_amazon_data(amazonUrl, cookie, asin, bOnlyProductInformation = False)
     if bOnlyProductInformation == True:
         try:
             see_all_reviews_link = soup.find("a", {"data-hook": "see-all-reviews-link-foot"})["href"]
+            image_src = soup.find("div", {"id": "imgTagWrapperId"}).findChild("img")["src"]
+
+            print("image url:", image_src)
 
             URL_ALL_REVIEWS="https://www.amazon.com/"+see_all_reviews_link
 
@@ -64,7 +67,7 @@ def scrape_amazon_data(amazonUrl, cookie, asin, bOnlyProductInformation = False)
             img_elem = soup.find("img", {"data-hook": "cr-product-image"})
             img = img_elem.attrs['src']
 
-            newProdInfo = { "rating" : ratings_count.replace(",", ""), "title": title, "stars": stars, "reviews": reviews_count.replace(",", ""), "img": img }
+            newProdInfo = { "rating" : ratings_count.replace(",", ""), "title": title, "stars": stars, "reviews": reviews_count.replace(",", ""), "img": image_src }
             
             print( "Product Information", newProdInfo )
             return newProdInfo, []

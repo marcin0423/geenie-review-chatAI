@@ -164,9 +164,11 @@ def getAnswer(prompt, asin):
             try:
                 print( 'get answer:', prompt )
                 response = i[1].run(prompt)
+                print(response)
                 return True, response
             except:
-                return False, "Sorry, Server Went Wrong."
+                prompt = "It is not possible to answer this question without more information."; print(response)
+                return False, prompt
 
     # if it doesn't exits, append new review
     print( 'train asin:', asin )
